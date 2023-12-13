@@ -1,0 +1,157 @@
+version: '3.8'
+
+services:
+  postgres001:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_DB: ${DB1_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/initdb:/docker-entrypoint-initdb.d
+      - postgres001-data:/var/lib/postgresql/data
+    networks:
+      - postgres_network
+
+  postgres002:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_DB: ${DB2_NAME}
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./postgres/initdb:/docker-entrypoint-initdb.d
+      - postgres002-data:/var/lib/postgresql/data
+    networks:
+      - postgres_network
+
+  postgres003:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_DB: ${DB3_NAME}
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./postgres/initdb:/docker-entrypoint-initdb.d
+      - postgres003-data:/var/lib/postgresql/data
+    networks:
+      - postgres_network
+
+  postgres004:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_DB: ${DB4_NAME}
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./postgres/initdb:/docker-entrypoint-initdb.d
+      - postgres004-data:/var/lib/postgresql/data
+    networks:
+      - postgres_network
+
+  postgres005:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_DB: ${DB5_NAME}
+    ports:
+      - "5436:5432"
+    volumes:
+      - ./postgres/initdb:/docker-entrypoint-initdb.d
+      - postgres005-data:/var/lib/postgresql/data
+    networks:
+      - postgres_network
+
+
+  postgres-to-s3:
+    image: postgres-to-s3
+    volumes:
+      - ./postgres-to-s3:/postgres-to-s3
+    depends_on:
+      - postgres001
+      - postgres002
+      - postgres003
+      - postgres004
+      - postgres005
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+
+      AWS_ACCESS_KEY_ID: ${MY_AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${MY_AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${MY_AWS_DEFAULT_REGION}
+
+      S3_OUTPUT_PATH: ${S3_OUTPUT_PATH}
+
+      JOB_NAME: ${JOB_NAME}
+    ports:
+      - "4040:4040" # for access to Spark UI (check it after!)
+    networks:
+      - postgres_network
+    command: [
+      "--DATABASE_URL", "jdbc:postgresql://postgres001:5432/${DB1_NAME}",
+      "--S3_OUTPUT_PATH", "${S3_OUTPUT_PATH}",
+      "--TABLE_NAME", "operationaldata.restaurants",
+      "--COLUMNS", "restaurantid", "restaurantname", "lastupdatedtime",
+      #"--start_date", "2023-12-11 18:05:04.135", # optional
+      #"--end_date", "2023-12-12 23:59:49.858"
+    ]
+
+  
+  s3-to-mysql:
+    image: s3-to-mysql
+    volumes:
+      - ./s3-to-mysql:/s3-to-mysql
+    environment:
+      MYSQL_HOST: mysql-container
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+      AWS_ACCESS_KEY_ID: ${MY_AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${MY_AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${MY_AWS_DEFAULT_REGION}
+
+      S3_INPUT_PATH: ${S3_INPUT_PATH}
+
+      JOB_NAME: ${JOB_NAME}
+    ports:
+      - "4040:4040"
+    command: [
+      "--S3_INPUT_PATH", "${S3_INPUT_PATH}",
+      "--TABLE_NAME", "operationaldata-restaurants-20231213100116",
+      "--COLUMNS", "restaurantid",
+      #"--start_date", "2023-10-10 18:05:04.135", # optional
+      #"--end_date", "2023-12-12 23:59:49.858"
+    ]
+    networks:
+      - mysql_network
+
+volumes:
+  postgres001-data:
+  postgres002-data:
+  postgres003-data:
+  postgres004-data:
+  postgres005-data:
+  mysql-data:
+
+networks:
+  mysql_network:
+    external: true
+  postgres_network:
+    driver: bridge
